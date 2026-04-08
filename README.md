@@ -295,7 +295,6 @@ with a mock WhatsApp payload.
 
 ## Future Improvements
 
-- Add deduplication based on WhatsApp message IDs
 - Add authentication for the admin dashboard
 - Add search and filtering for conversations
 - Add better error handling and logging
