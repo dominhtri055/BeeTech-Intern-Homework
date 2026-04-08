@@ -4,5 +4,8 @@
     "mongodb": "^7.1.1",
     "mongoose": "^9.3.3",
     "openai": "^6.33.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2"
   }
 }
