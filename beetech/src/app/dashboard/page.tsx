@@ -1,38 +1,78 @@
+import { connectDB } from "@/lib/mongodb";
+import Conversation from "@/models/Conversation";
+import Message from "@/models/Message";
+
 async function getConversations() {
-  const res = await fetch("http://localhost:3000/api/conversations", {
-    cache: "no-store",
-  });
-  return res.json();
+  await connectDB();
+
+  const conversations = await Conversation.find()
+    .sort({ lastMessageAt: -1 })
+    .lean();
+
+  const result = await Promise.all(
+    conversations.map(async (conv: any) => {
+      const messages = await Message.find({
+        whatsappId: conv.whatsappId,
+      })
+        .sort({ createdAt: 1 })
+        .lean();
+
+      return {
+        whatsappId: conv.whatsappId,
+        tone: conv.tone,
+        lastMessageAt: conv.lastMessageAt,
+        messages,
+      };
+    })
+  );
+
+  return result;
 }
 
 export default async function DashboardPage() {
   const conversations = await getConversations();
 
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+    <main style={{ padding: "24px" }}>
+      <h1>Admin Dashboard</h1>
 
-      <div className="space-y-6">
-        {conversations.map((conv: any) => (
-          <div key={conv.whatsappId} className="border rounded-xl p-4 shadow">
-            <h2 className="font-semibold text-lg">{conv.whatsappId}</h2>
-            <p className="text-sm text-gray-500">Tone: {conv.tone}</p>
+      {conversations.length === 0 ? (
+        <p>No conversations yet.</p>
+      ) : (
+        <div style={{ display: "grid", gap: "16px" }}>
+          {conversations.map((conv: any) => (
+            <div
+              key={conv.whatsappId}
+              style={{
+                background: "#E1D4C2",
+                padding: "16px",
+                borderRadius: "12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              }}
+            >
+              <h2>{conv.whatsappId}</h2>
+              <p>Tone: {conv.tone}</p>
 
-            <div className="mt-4 space-y-2">
-              {conv.messages.map((msg: any) => (
-                <div
-                  key={msg._id}
-                  className={`p-3 rounded ${
-                    msg.role === "user" ? "bg-gray-100" : "bg-green-100"
-                  }`}
-                >
-                  <strong>{msg.role}:</strong> {msg.content}
-                </div>
-              ))}
+              <div style={{ marginTop: "12px" }}>
+                {conv.messages.map((msg: any) => (
+                  <div
+                    key={String(msg._id)}
+                    style={{
+                      marginBottom: "8px",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      background:
+                        msg.role === "user" ? "#ffffff" : "#dcfce7",
+                    }}
+                  >
+                    <strong>{msg.role}:</strong> {msg.content}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

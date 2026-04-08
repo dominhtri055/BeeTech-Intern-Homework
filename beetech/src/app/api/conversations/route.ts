@@ -10,8 +10,11 @@ export async function GET() {
 
   const result = await Promise.all(
     conversations.map(async (conv) => {
-      const messages = await Message.find({ whatsappId: conv.whatsappId })
-        .sort({ createdAt: 1 });
+      const messages = await Message.find({
+        whatsappId: conv.whatsappId,
+      }).sort({
+        createdAt: 1,
+      });
 
       return {
         whatsappId: conv.whatsappId,

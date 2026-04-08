@@ -6,37 +6,38 @@ import Message from "@/models/Message";
 import { generateReply } from "@/lib/openai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
-export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-
-  const mode = searchParams.get("hub.mode");
-  const token = searchParams.get("hub.verify_token");
-  const challenge = searchParams.get("hub.challenge");
-
-  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    return new NextResponse(challenge, { status: 200 });
-  }
-
-  return NextResponse.json({ error: "Verification failed" }, { status: 403 });
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     await connectDB();
 
-    const message =
-      body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
 
     if (!message) {
       return NextResponse.json({ received: true });
     }
 
+    if (message.type !== "text") {
+      return NextResponse.json({ received: true, ignored: true });
+    }
+
+    const incomingMessageId = message.id;
     const whatsappId = message.from;
     const userText = message.text?.body;
 
     if (!userText) {
       return NextResponse.json({ received: true });
+    }
+
+    const existingMessage = await Message.findOne({
+      messageId: incomingMessageId,
+    });
+
+    if (existingMessage) {
+      return NextResponse.json({
+        received: true,
+        duplicate: true,
+      });
     }
 
     await User.updateOne(
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
 
     await Message.create({
       whatsappId,
+      messageId: incomingMessageId,
       role: "user",
       content: userText,
     });
@@ -64,12 +66,10 @@ export async function POST(req: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(10);
 
-    const history = recentMessages
-      .reverse()
-      .map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+    const history = recentMessages.reverse().map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     const reply = await generateReply(conversation.tone, history, userText);
 
@@ -87,6 +87,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Webhook POST error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }
